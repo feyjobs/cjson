@@ -57,7 +57,17 @@ int lex(string *sourceFlow, struct token *token){
     state = 0
 
     enum {
+        sd_start = 0,
+        sd_zero,
+        sd_dig,
+        sd_point,
+        sd_point_dig,
+        sd_science,
+        sd_science_neg,
+        sd_science_dig,
+        sd_end
     } dig_state;
+
     state = 0
     while(pos < sourceFlow->len){
         switch (state):
@@ -108,15 +118,103 @@ int lex(string *sourceFlow, struct token *token){
                 if(ch >= '1' && ch <= '9'){
                     state = sl_dig;
                     pre = ch;
+                    dig_state = sd_dig;
+                }
+                if(ch == '0'){
+                    state = sl_dig;
+                    pre = ch;
+                    dig_state = sd_zero;
                 }
                 if(ch == '-'){
                     state = sl_dig;
+                    dig_state = sd_start;
                     pre = ch;
                 }
                 ch++;
                 pos++;
                 break;
             case sl_dig:
+                switch (dig_state){
+                    case sd_start:
+                        if(ch >= '1' && ch <= '9'){
+                            dig_state = sd_dig;
+                            break;
+                        }
+                        if(ch == '0'){
+                            dig_state = sd_zero;
+                            break;
+                        }
+                        return JSON_ERR;
+                    case sd_zero:
+                        if(ch == '.'){
+                            dig_state = sd_point;
+                            break;
+                        }
+                        if(ch == ' '||ch =='\n'||ch == '\r'||ch == '\t'||ch == ','|| ch == ']'||ch == '}'){
+                            dig_state = sd_end;
+                            state = sl_start;
+                            break;
+                        }
+                        return JSON_ERR;
+                    case sd_dig:
+                        if(ch >= '0' && ch <= 9){
+                            break;
+                        }
+                        if(ch == ' '||ch =='\n'||ch == '\r'||ch == '\t'||ch == ','|| ch == ']'||ch == '}'){
+                            dig_state = sd_end;
+                            state = sl_start;
+                            break;
+                        }
+                        if(ch == '.'){
+                            dig_state = sd_point;
+                            break;
+                        }
+                        return JSON_ERR;
+                    case sd_point:
+                        if(ch >= '0' && ch <= '9'){
+                            dig_state = sd_point_dig;
+                            break;
+                        }
+                        return JSON_ERR;
+                    case sd_point_dig:
+                        if(ch >= '0' && ch <= 9){
+                            break;
+                        }
+                        if(ch == ' '||ch =='\n'||ch == '\r'||ch == '\t'){
+                            state = sl_start;
+                            dig_state = sd_end; 
+                            break;
+                        }
+                        if(ch == 'e' || ch == 'E'){
+                            dig_state = sd_science;
+                            break;
+                        }
+                        return JSON_ERR;
+                    case sd_science:
+                        if(ch == '-' || ch == '+'){
+                            dig_state = sd_science_neg;
+                            break;
+                        }
+                        if(ch >= '0' && ch <= 9){
+                            dig_state = sd_science_dig;
+                            break;
+                        }
+                        return JSON_ERR;
+                    case sd_science_dig:
+                        if(ch >= '0' && ch <= 9){
+                            dig_state = sd_science_dig;
+                            break;
+                        }
+                        if(ch == ' '||ch =='\n'||ch == '\r'||ch == '\t'){
+                            state = sl_start;
+                            dig_state = sd_end; 
+                            break;
+                        }
+                        return JSON_ERR;
+                }
+
+                ch++;
+                pos++;
 
             case sl_end:
                 token->next = (struct token*)malloc(sizeof(struct token));
